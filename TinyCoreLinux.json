@@ -1,0 +1,85 @@
+{
+  "builders": [
+	{
+	  "type": "virtualbox-iso",
+	  "guest_os_type": "Linux_64",
+	  "iso_url": "file://./Core_7.2.iso",
+	  "iso_checksum": "f67bb8ddb88ebdb5a83912c883ad1766b94eecf10ad8b6d18233c5a7ebcce414",
+	  "iso_checksum_type": "sha256",
+	  "ssh_username": "tc",
+	  "ssh_password": "tc",
+	  "boot_wait": "4s",
+	  "shutdown_command": "sudo poweroff",
+	  "boot_command" : [
+	  	"<enter><wait10>",
+	  	"ifconfig",
+	  	"<return>",	  	
+	  	"tce-load -iw openssh.tcz<return><wait10>",
+	  	"sudo passwd tc<return>",
+	  	"tc<return>",
+	  	"tc<return>",
+	  	"sudo /usr/local/etc/init.d/openssh start<return><wait>"
+	  	],
+	  "export_opts": [
+	  	"--manifest",
+	  	"--vsys", "0",
+	  	"--description","{{user `vm_description`}}",
+	  	"--version", "{{user `vm_version`}}"
+	  ],
+	  "format":"ova",
+	  "vm_name":"TinyCore_template" 
+	}],
+  "provisioners": [{
+    "type": "shell",
+    "pause_before":"1s",
+    "execute_command": "echo '' | sudo -S sh -c '{{ .Vars }} {{ .Path }}'",
+    "inline": [
+      "cp -R /tmp/tce ~/"
+    ]},{
+    "type": "shell",
+    "pause_before":"1s",
+    "inline": [
+      "tce-load -iw parted.tcz",
+      "tce-load -iw grub2.tcz"
+      ]},
+    {
+    "type": "shell",
+    "pause_before":"1s",
+    "execute_command": "echo '' | sudo -S sh -c '{{ .Vars }} {{ .Path }}'",
+    "inline": [
+      "export PATH=$PATH:/usr/local/sbin:/usr/local/bin",
+      "parted /dev/sda mktable msdos",
+      "parted /dev/sda mkpart primary ext3 1% 99%",
+      "parted /dev/sda set 1 boot on",
+      "mkfs.ext3 /dev/sda1",
+      "parted /dev/sda print",
+      "rebuildfstab",
+      "mount /mnt/sda1",
+      "echo COPY SOFT",
+      "echo /usr/local/etc/init.d/openssh start >> /opt/bootlocal.sh",
+      "echo usr/local/etc/ssh > /opt/.filetool.lst",
+      "echo etc/passwd>> /opt/.filetool.lst",
+      "echo etc/shadow>> /opt/.filetool.lst",
+      "/bin/tar -C / -T /opt/.filetool.lst -cvzf /mnt/sda1/mydata.tgz",
+      "mv ~/tce /mnt/sda1/",
+      "cp -R /opt /mnt/sda1",
+      "echo INSTALLING GRUB",
+      "grub-install --target=i386-pc --boot-directory=/mnt/sda1/boot /dev/sda",
+      "mount /mnt/sr0/",
+      "cp /mnt/sr0/boot/core.gz /mnt/sda1/boot/",
+      "cp /mnt/sr0/boot/vmlinuz /mnt/sda1/boot/",
+      "echo set timeout=3 > /mnt/sda1/boot/grub/grub.cfg",
+      "echo menuentry \\\"Tiny Core\\\" { >> /mnt/sda1/boot/grub/grub.cfg",
+      "echo  linux /boot/vmlinuz com1=9600,8n1 loglevel=3 user=tc console=ttyS0 console=tty0 noembed nomodeset tce=sda1 opt=sda1 home=sda1 restore=sda1 >> /mnt/sda1/boot/grub/grub.cfg",
+      "echo  initrd /boot/core.gz >> /mnt/sda1/boot/grub/grub.cfg",
+      "echo } >> /mnt/sda1/boot/grub/grub.cfg",
+      "reboot"
+    ]
+  },{
+    "type": "shell",
+    "pause_before":"5s",
+    "inline": [
+      "echo THANKS FOR WHATCHING!",
+      "echo ---===  BYE!  ===---"
+      ]}]
+}
